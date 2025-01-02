@@ -2,6 +2,8 @@
 
 **FlayerCaptcha** is a module for automating captcha handling in Mineflayer bots for Minecraft versions 1.13.2 - 1.20.4. It allows for downloading and saving captcha images, simplifying bot interaction with servers.
 
+[+] Зафиксил лично для себя обнаружение сущностей
+
 ## Example Usage
 
 ```javascript
