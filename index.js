@@ -11,7 +11,7 @@ class FlayerCaptcha extends EventEmitter {
         this.initializations();
 
         this.yaws = { "2": '1', "3": '2', "5": '3', "0": '4' };
-    };
+    }
 
     stop() { this.updateState(true) }
     resume() { this.updateState(false) }
@@ -61,7 +61,7 @@ class FlayerCaptcha extends EventEmitter {
             this.isNotSupportedVersion();
             if (this.isStopped) return;
             this.setDefaultSettings();
-        })
+        });
 
         this.bot._client.on('packet', async (packet) => {
             if (!packet || this.isStopped) return;
@@ -70,22 +70,21 @@ class FlayerCaptcha extends EventEmitter {
             if (data && typeof itemDamage == 'number') {
                 this.img.maps.set(itemDamage, data);
             } else if (this.isFilledMap(item?.itemId)) {
-
                 const idMap = item.nbtData ? item.nbtData.value.map.value : 0;
                 const imgBuf = await this.takeImgBuf(idMap);
 
                 this.img.images.push([{ x: 0, y: 0, z: 0 }, imgBuf, 0]);
                 this.createCaptchaImage();
             }
-        })
+        });
 
         this.bot._client.on('entity_metadata', async ({ entityId, metadata }) => {
             if (this.isStopped) return;
 
             const entity = this.bot.entities[entityId];
             if (!entity) {
-            console.log('Сущность не найдена. Игнорируем событие.');
-            return;
+                console.log('Сущность не найдена. Игнорируем событие.');
+                return;
             }
 
             const { entityType, position, yaw } = entity;
@@ -96,20 +95,51 @@ class FlayerCaptcha extends EventEmitter {
 
             if (!this.isFilledMap(itemData?.itemId)) return;
 
-            this.img.y.push(position.y);
-            this.img.x.push(position.x);
-            this.img.z.push(position.z);
+            // Проверка, находится ли каптча перед игроком
+            if (this.isInFrontOfPlayer(position)) {
+                this.img.y.push(position.y);
+                this.img.x.push(position.x);
+                this.img.z.push(position.z);
 
-            this.img.yaw = this.yaws[yaw.toFixed(0)];
+                this.img.yaw = this.yaws[yaw.toFixed(0)];
 
-            const idMap = itemData.nbtData.value.map.value;
-            const imgBuf = await this.takeImgBuf(idMap);
+                const idMap = itemData.nbtData.value.map.value;
+                const imgBuf = await this.takeImgBuf(idMap);
 
-            const rotate = metadata.find(v => v.key === this.keys.keyRotate)?.value || 0;
+                const rotate = metadata.find(v => v.key === this.keys.keyRotate)?.value || 0;
 
-            this.img.images.push([position, imgBuf, rotate]);
-            this.createCaptchaImage();
-        })
+                this.img.images.push([position, imgBuf, rotate]);
+                this.createCaptchaImage();
+            }
+        });
+    }
+
+    // Проверка, находится ли каптча перед игроком
+    isInFrontOfPlayer(position) {
+        if (!this.bot.entity) return false;
+
+        const playerPos = this.bot.entity.position;
+        const playerYaw = this.bot.entity.yaw;
+
+        // Вектор от игрока к каптче
+        const dx = position.x - playerPos.x;
+        const dz = position.z - playerPos.z;
+
+        // Угол между направлением игрока и вектором к каптче
+        const angleToCaptcha = Math.atan2(dz, dx) * (180 / Math.PI);
+        const angleDiff = Math.abs(this.normalizeAngle(angleToCaptcha - playerYaw));
+
+        // Угол обзора (например, ±45°)
+        const viewAngle = 45;
+
+        return angleDiff <= viewAngle;
+    }
+
+    // Нормализация угла в диапазон [0, 360]
+    normalizeAngle(angle) {
+        angle = angle % 360;
+        if (angle < 0) angle += 360;
+        return angle;
     }
 
     async takeImgBuf(idMap) {
